@@ -5,6 +5,7 @@
 ---
 
 ## 🚀 Key Features
+
 * **Nmap-based Discovery:** Automated service and port discovery.
 * **Automated Parsing:** Seamless conversion of XML scan results to structured JSON.
 * **CVE Enrichment:** Integrated engine to map discovered services to known vulnerabilities.
@@ -15,6 +16,8 @@
 ---
 
 ## 📂 Project Structure
+
+```text
 CASM-Ethical-Hacking/
 ├── main.py              # Main execution script
 ├── scanner/             # Nmap integration logic
@@ -26,19 +29,15 @@ CASM-Ethical-Hacking/
 ├── scan_results/        # Output directory for scan data
 └── README.md
 
-
 ---
+⚙️ Installation & Setup
+1. System Dependencies
+Ensure Nmap is installed on your host machine:
 
-## ⚙️ Installation & Setup
+  sudo apt update && sudo apt install nmap -y
 
-### 1. System Dependencies
-Ensure **Nmap** is installed on your host machine:
-```bash
-sudo apt update && sudo apt install nmap -y
 2. Python Environment
-We recommend using a virtual environment to manage dependencies:
 
-Bash
 # Create and activate environment
 python3 -m venv venv
 source venv/bin/activate
@@ -48,27 +47,23 @@ pip install -r requirements.txt
 
 # Manual install if requirements.txt is missing
 pip install flask networkx
-▶️ Usage Guide
+---
+
+▶️ How to Run
 1. Run the Pipeline
-Execute the full scan, enrichment, and scoring process:
-
-Bash
-python main.py
-This will:
-
-Run an Nmap scan (Default: localhost).
-
-Parse and enrich results with CVE data.
-
-Compute risk scores and save the output to scan_results/test_results.json.
+  python main.py
+  This will:
+  
+  Run an Nmap scan (Default: localhost).
+  Parse and enrich results with CVE data.
+  Compute risk scores and save the output to scan_results/test_results.json.
 
 2. Launch the Dashboard
-Start the visualization server:
-
-Bash
-python -m dashboard.app
-Then, navigate to: http://127.0.0.1:5000
-
+  Start the visualization server:
+  
+  python -m dashboard.app
+  Then, navigate to: http://127.0.0.1:5000
+---
 🎯 Configuration & Output
 Default Target: By default, CASM scans 127.0.0.1. To change the target range, modify the configuration in scanner/nmap_scanner.py.
 
@@ -87,4 +82,5 @@ JSON
     ]
   }
 }
+---
 Disclaimer: This tool is for educational and authorized security testing purposes only.
