@@ -1,26 +1,21 @@
-import json
-
+# main.py
 from scanner.nmap_scanner import run_scan
-from parser.parse_results import parse_nmap
-from cve_engine.cve_mapper import enrich_with_cves
-from risk_scoring.scorer import score_risk
+from cve_engine.cve_mapper import map_cves
+from risk_scoring.scorer import score_risks
 from attack_graph.graph_builder import build_graph
-from attack_graph.path_analysis import find_most_critical
 
-xml_file = run_scan("127.0.0.1")
+def run_scan_pipeline(target):
+    scan = run_scan(target)
+    scan = map_cves(scan)
+    scan = score_risks(scan)
+    
+    # Build the NetworkX graph
+    G = build_graph(scan)
+    
+    # Format for Vis.js
+    graph_data = {
+        "nodes": [{"id": n, **d} for n, d in G.nodes(data=True)],
+        "edges": [{"from": u, "to": v} for u, v in G.edges()]
+    }
 
-data = parse_nmap(xml_file)
-data = enrich_with_cves(data)
-data = score_risk(data)
-
-with open("scan_results/test_results.json", "w") as f:
-    json.dump(data, f, indent=2)
-
-G = build_graph(data)
-critical = find_most_critical(G)
-
-print("\n=== RESULTS ===")
-print(data)
-
-print("\n=== MOST CRITICAL ===")
-print(critical)
+    return graph_data # Return the formatted graph, not the raw scan

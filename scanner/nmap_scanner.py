@@ -1,19 +1,27 @@
-import subprocess
-import os
+#nmap_scanner.py
+import nmap
 
-def run_scan(target="127.0.0.1"):
-    os.makedirs("scan_results", exist_ok=True)
+def run_scan(target):
 
-    output_file = "scan_results/scan.xml"
+    nm = nmap.PortScanner()
+    nm.scan(target, "1-1024")
 
-    cmd = [
-        "nmap",
-        "-sV",
-        "-oX",
-        output_file,
-        target
-    ]
+    results = {}
 
-    subprocess.run(cmd, capture_output=True, text=True)
+    for host in nm.all_hosts():
+        results[host] = {"services": []}
 
-    return output_file
+        for proto in nm[host].all_protocols():
+            for port in nm[host][proto]:
+
+                svc = nm[host][proto][port]
+
+                results[host]["services"].append({
+                    "port": port,
+                    "service": svc.get("name", ""),
+                    "version": svc.get("version", ""),
+                    "cves": [],
+                    "risk": 0
+                })
+
+    return results

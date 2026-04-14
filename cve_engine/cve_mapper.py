@@ -1,11 +1,15 @@
-def enrich_with_cves(data):
-    for ip in data:
-        for svc in data[ip]["services"]:
+def map_cves(network):
+
+    for host in network:
+        for svc in network[host]["services"]:
+
             if svc["service"] == "http":
-                svc["cves"] = ["CVE-2025-XXXX1", "CVE-2025-XXXX2"]
+                svc["cves"] = ["CVE-DEMO-HTTP-001"]
+
             elif svc["service"] == "ssh":
-                svc["cves"] = ["CVE-2024-XXXX1"]
+                svc["cves"] = ["CVE-DEMO-SSH-001"]
+
             else:
                 svc["cves"] = []
 
-    return data
+    return network

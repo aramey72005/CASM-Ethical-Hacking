@@ -1,28 +1,18 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>CASM Dashboard</title>
-    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <style>
-        #network {
-            width: 100%;
-            height: 500px;
-            border: 1px solid lightgray;
-        }
-    </style>
-</head>
+<!-- index.html-->
+{% extends "base.html" %}
 
-<body>
+{% block content %}
 
-<h2>CASM Attack Surface Graph</h2>
+<h2>Network Graph</h2>
 
-<button onclick="runScan()">Run Scan</button>
-
-<div id="network"></div>
-
+<div id="graph" style="height: 600px;"></div>
 <pre id="info"></pre>
 
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
 <script>
+let network = null;
+
 function loadGraph() {
     fetch("/api/graph")
         .then(res => res.json())
@@ -33,14 +23,23 @@ function loadGraph() {
 
             const container = document.getElementById("network");
 
-            const network = new vis.Network(container, {nodes, edges}, {
+            const options = {
                 nodes: {
                     shape: "dot",
-                    size: 15
+                    size: 16,
+                    font: { color: "#ffffff" }
+                },
+                edges: {
+                    color: "#888"
+                },
+                physics: {
+                    enabled: true
                 }
-            });
+            };
 
-            network.on("click", function(params) {
+            network = new vis.Network(container, { nodes, edges }, options);
+
+            network.on("click", function (params) {
                 if (params.nodes.length > 0) {
                     fetch("/api/node?node=" + params.nodes[0])
                         .then(r => r.json())
@@ -50,16 +49,22 @@ function loadGraph() {
                         });
                 }
             });
+
         });
 }
 
 function runScan() {
-    fetch("/api/scan")
-        .then(() => setTimeout(loadGraph, 2000));
+    const target = document.getElementById("target").value;
+
+    fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target })
+    }).then(() => {
+        setTimeout(loadGraph, 2000);
+    });
 }
 
-loadGraph();
+window.onload = loadGraph;
 </script>
-
-</body>
-</html>
+{% endblock %}
