@@ -1,0 +1,26 @@
+{
+  "127.0.0.1": {
+    "services": [
+      {
+        "port": 80,
+        "service": "http",
+        "version": "2.4.66",
+        "cves": [
+          "CVE-2025-XXXX1",
+          "CVE-2025-XXXX2"
+        ],
+        "risk": 8
+      },
+      {
+        "port": 5000,
+        "service": "http",
+        "version": "3.1.3",
+        "cves": [
+          "CVE-2025-XXXX1",
+          "CVE-2025-XXXX2"
+        ],
+        "risk": 8
+      }
+    ]
+  }
+}
