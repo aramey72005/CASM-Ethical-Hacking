@@ -1,0 +1,53 @@
+H.E.A.D. Security Labs — CASM
+Team Responsibilities & Folder Ownership
+
+👤 Team Member 1 — Recon & Scanning Lead
+Owns everything related to network setup and raw data collection.
+
+scanner/nmap_scanner.py — Write the Nmap scan logic. Should accept a target range and return raw XML output.
+scanner/scan_config.py — Define scan settings (ports, flags, timing). Makes it easy to adjust strategy without rewriting the scanner.
+scanner/topology/ — Set up and document the CORE virtual network. Store topology configs here.
+parser/parse_results.py — Convert raw Nmap XML into clean structured JSON. This is your handoff to TM2 — the cleaner this output is, the easier their job is.
+
+Your job is done when TM2 can take a JSON file from scan_results/ and immediately start mapping CVEs without touching your code.
+
+👤 Team Member 2 — Vulnerability Intelligence & Risk Modeling
+Owns the brains of the tool — turning scan data into meaningful risk.
+
+cve_engine/cve_mapper.py — Take the parsed JSON from TM1 and match each service/version to relevant CVEs. Filter to likely, high-impact exploits only — not everything.
+cve_engine/exploit_db.py — Supplement CVE data with Exploit-DB lookups.
+cve_engine/data/ — Build and maintain the local CVE/exploit JSON dataset so the tool works offline.
+risk_scoring/scorer.py — Design and implement the scoring formula. Use CVSS as a base but justify any modifications.
+risk_scoring/docs/ — Write up how the scoring works and why. This goes in the final report.
+
+Your job is done when each vulnerability has a risk score and TM3 can build a graph from your output.
+
+👤 Team Member 3 — Attack Graph & Analysis Engine
+Owns the logic that turns scored vulnerabilities into an explorable attack surface.
+
+attack_graph/graph_builder.py — Take TM2's scored output and build a node/edge graph. Nodes = hosts/services, edges = attack paths.
+attack_graph/path_analysis.py — Analyze the graph for critical paths and lateral movement. Output a ranked list of high-risk targets.
+attack_graph/output/ — Store the final graph exports that get passed to TM4's dashboard.
+
+Your job is done when TM4 can load your output and render it visually without needing to understand the graph logic.
+
+👤 Team Member 4 — Visualization & Integration Lead
+Owns the dashboard and the demo — this is what the professor and class will actually see.
+
+dashboard/app.py — Build the Flask app. Load TM3's graph output and serve it to the UI.
+dashboard/templates/index.html — Main UI page. Keep it clean and analyst-focused.
+dashboard/static/js/ — Implement the interactive graph using Cytoscape.js (recommended) or D3.js. Must support zoom, filter by severity, and node selection.
+dashboard/components/ — Any reusable UI pieces (sidebars, tooltips, filter panels).
+
+Your job is done when the dashboard runs demo-ready: loads graph data, filters by risk level, and lets you zoom into individual nodes and see their CVEs and scores.
+
+Shared Files
+
+main.py — Everyone contributes to this at the end. It chains all modules together: scan → parse → map → score → graph → dashboard.
+requirements.txt — Each member adds their dependencies as they build.
+tests/test_scanner.py — TM1 owns this but everyone should add basic tests for their module.
+README.md — TM4 owns the final version for the demo.
+
+
+Integration Order
+TM1 → TM2 → TM3 → TM4. Each module depends on the previous one's output, so coordinate on the JSON structure early so nobody is blocked waiting on someone else.
