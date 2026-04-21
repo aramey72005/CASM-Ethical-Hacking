@@ -1,0 +1,121 @@
+CASM — Handoff JSON Formats
+============================
+These are the agreed-upon data structures used between each module.
+Do NOT change the field names or structure without telling the whole team,
+as each module depends on the previous one's output.
+
+Handoff 1: scanner/parser → cve_engine       (TM1 → TM2)
+Handoff 2: cve_engine/risk_scoring → attack_graph  (TM2 → TM3)
+Handoff 3: attack_graph → dashboard          (TM3 → TM4)
+
+Sample files are located in each module's output folder.
+Use them to develop and test your module independently
+before the full pipeline is connected.
+
+Handoff 1 — TM1 → TM2
+scan_results/scan_output.json
+json{
+  "scan_metadata": {
+    "target_range": "192.168.1.0/24",
+    "timestamp": "2026-03-31T10:00:00",
+    "scan_type": "SYN"
+  },
+  "hosts": [
+    {
+      "ip": "192.168.1.10",
+      "hostname": "webserver01",
+      "status": "up",
+      "ports": [
+        {
+          "port": 80,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "http",
+          "version": "Apache 2.4.49"
+        },
+        {
+          "port": 22,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "ssh",
+          "version": "OpenSSH 7.4"
+        }
+      ]
+    }
+  ]
+}
+
+Handoff 2 — TM2 → TM3
+cve_engine/output/scored_vulnerabilities.json
+json{
+  "hosts": [
+    {
+      "ip": "192.168.1.10",
+      "hostname": "webserver01",
+      "vulnerabilities": [
+        {
+          "port": 80,
+          "service": "http",
+          "version": "Apache 2.4.49",
+          "cve_id": "CVE-2021-41773",
+          "description": "Path traversal and RCE in Apache 2.4.49",
+          "cvss_score": 9.8,
+          "severity": "critical",
+          "exploit_available": true,
+          "risk_score": 95
+        },
+        {
+          "port": 22,
+          "service": "ssh",
+          "version": "OpenSSH 7.4",
+          "cve_id": "CVE-2018-15473",
+          "description": "Username enumeration in OpenSSH",
+          "cvss_score": 5.3,
+          "severity": "medium",
+          "exploit_available": true,
+          "risk_score": 52
+        }
+      ]
+    }
+  ]
+}
+
+Handoff 3 — TM3 → TM4
+attack_graph/output/graph.json
+json{
+  "nodes": [
+    {
+      "id": "192.168.1.10",
+      "label": "webserver01",
+      "type": "host",
+      "highest_risk": 95,
+      "severity": "critical"
+    },
+    {
+      "id": "CVE-2021-41773",
+      "label": "CVE-2021-41773",
+      "type": "vulnerability",
+      "risk_score": 95,
+      "severity": "critical"
+    }
+  ],
+  "edges": [
+    {
+      "source": "192.168.1.10",
+      "target": "CVE-2021-41773",
+      "relationship": "has_vulnerability",
+      "weight": 95
+    },
+    {
+      "source": "192.168.1.10",
+      "target": "192.168.1.20",
+      "relationship": "lateral_movement",
+      "weight": 72
+    }
+  ],
+  "critical_path": ["192.168.1.10", "192.168.1.20"],
+  "risk_ranked_targets": [
+    { "ip": "192.168.1.10", "risk_score": 95 },
+    { "ip": "192.168.1.20", "risk_score": 72 }
+  ]
+}
