@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Network Graph</h2>
+<div class="debug-panel">
+  <div class="debug-header">
+    <h3>Scan Debug</h3>
+    <button type="button" onclick="refreshDebug()">Refresh Debug</button>
+  </div>
+  <pre id="scanDebug">No scan activity yet.</pre>
+</div>
+<div id="graph" style="height: 600px;"></div>
+<h3>Selected Node</h3>
+<pre id="info"></pre>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+{% endblock %}

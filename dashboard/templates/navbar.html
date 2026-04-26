@@ -1,0 +1,25 @@
+<!-- navbar.html-->
+<div class="navbar">
+
+  <div class="logo">CASM</div>
+
+  <div class="nav-center">
+    <nav class="main-nav">
+      <a href="/" class="nav-link">Graph View</a>
+      <a href="/results" class="nav-link">Scan Results</a>
+    </nav>
+  </div>
+
+  <div class="controls">
+    <input id="targetInput" placeholder="127.0.0.1 / 192.168.1.0/24">
+
+    <button onclick="runScan()">Run Scan</button>
+
+    <select id="themeSelect" onchange="setTheme(this.value)">
+      <option value="dark">Dark</option>
+      <option value="light">Light</option>
+      <option value="hacker">Hacker</option>
+    </select>
+  </div>
+
+</div>

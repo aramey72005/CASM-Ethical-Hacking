@@ -1,0 +1,19 @@
+<!-- result.html-->
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Scan Results</h2>
+
+<pre id="results"></pre>
+
+<script>
+fetch("/api/graph")
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById("results").innerText =
+      JSON.stringify(data, null, 2);
+  });
+</script>
+
+{% endblock %}

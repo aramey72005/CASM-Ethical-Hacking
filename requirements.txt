@@ -1,0 +1,5 @@
+python-nmap
+requests
+networkx
+flask
+vulners
