@@ -6,7 +6,7 @@ from urllib.parse import quote  # (not currently used, but useful if encoding qu
 # Base endpoint for NVD CVE API (version 2.0)
 NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 # Public NVD requests without an API key are rate limited. The delay plus
-# in-process cache keep normal classroom/lab scans from hammering the API.
+# in-process cache keeps scans from being stopped by the API.
 NVD_REQUEST_DELAY_SECONDS = 6.2
 NVD_QUERY_CACHE = {}
 LAST_NVD_REQUEST_AT = 0.0
@@ -24,7 +24,7 @@ def throttle_nvd_request():
 
     LAST_NVD_REQUEST_AT = time.monotonic()
 
-
+#Function builds the search for the NVD API using the data from the scan
 def build_search_queries(service: str, product: str | None = None, version: str | None = None) -> list[str]:
     """
     Builds NVD keyword searches from scanner service data.
@@ -33,14 +33,17 @@ def build_search_queries(service: str, product: str | None = None, version: str 
     Nmap often reports Apache as "Apache httpd", while NVD commonly uses
     "Apache HTTP Server" or the CPE product name "http_server".
     """
-    candidates = []
+    candidates = [] #Stores possible searches
 
+
+    #Prevents errors if product or service is None
     product_lower = (product or "").lower()
     service_lower = (service or "").lower()
     is_apache_httpd = (
         "apache" in product_lower and ("httpd" in product_lower or "http" in service_lower)
     )
 
+    #Apache specific set up
     if is_apache_httpd:
         if version:
             # Apache is the main place Nmap/NVD naming differs in this project:
@@ -62,12 +65,15 @@ def build_search_queries(service: str, product: str | None = None, version: str 
         # data is strongly preferred.
         candidates.append(service)
 
+    #Removes ability for duplicate items
     queries = []
     seen = set()
 
     for candidate in candidates:
         query = str(candidate or "").strip()
         key = query.lower()
+
+        #Only adds a non empty and unique query
         if query and key not in seen:
             queries.append(query)
             seen.add(key)
@@ -75,6 +81,7 @@ def build_search_queries(service: str, product: str | None = None, version: str 
     return queries
 
 
+#Standardizes numeric CVSS scores into readable risk levels
 def get_severity(score: float) -> str:
     """
     Converts a numeric CVSS score into a severity label.
@@ -97,6 +104,7 @@ def get_severity(score: float) -> str:
     return "UNKNOWN"
 
 
+#Extracts the CVSS score and the severity from the CVE object 
 def extract_cvss(cve_obj: dict) -> tuple[float, str]:
     """
     Extracts CVSS score and severity from an NVD CVE object.
@@ -111,16 +119,20 @@ def extract_cvss(cve_obj: dict) -> tuple[float, str]:
     2. Extracts the base score
     3. Determines severity (uses provided value or calculates it)
     """
+
+    #Gets the metrics section
     metrics = cve_obj.get("metrics", {})
 
     # Try CVSS versions in order of preference
     for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+
+        #Get the list of scores for the associated CVSS version
         arr = metrics.get(key)
 
         # Ensure the metric exists and is a list
         if arr and isinstance(arr, list):
             first = arr[0]  # Take first scoring entry
-            cvss_data = first.get("cvssData", {})
+            cvss_data = first.get("cvssData", {}) 
 
             # Extract base score (default 0 if missing)
             score = cvss_data.get("baseScore", 0.0)
@@ -137,7 +149,7 @@ def extract_cvss(cve_obj: dict) -> tuple[float, str]:
     # If no CVSS data found
     return 0.0, "UNKNOWN"
 
-
+#Core function does searching on the NVD for CVEs related to the service scanned
 def lookup_cves(service: str, product: str | None = None, version: str | None = None) -> list[dict]:
     """
     Queries the NVD API to find CVEs related to a given service/product/version.
@@ -159,6 +171,7 @@ def lookup_cves(service: str, product: str | None = None, version: str | None = 
     ]
     """
 
+    #Build the search
     queries = build_search_queries(service, product, version)
 
     # If nothing to search, return empty
@@ -166,12 +179,13 @@ def lookup_cves(service: str, product: str | None = None, version: str | None = 
         return []
 
     try:
-        results = []
-        seen_cves = set()
+        results = [] #Stores final CVEs 
+        seen_cves = set() #Prevents duplicate CVEs 
 
         for query in queries:
             print(f"[DEBUG] NVD search: {query}")
-
+            
+            #Stores what will be searched and checks if its been searched
             cache_key = query.lower()
             if cache_key in NVD_QUERY_CACHE:
                 # Repeated products across hosts should reuse the same response
@@ -179,6 +193,7 @@ def lookup_cves(service: str, product: str | None = None, version: str | None = 
                 data = NVD_QUERY_CACHE[cache_key]
                 print(f"[DEBUG] NVD cache hit: {query}")
             else:
+                #When not cached it waits before making a new API request
                 throttle_nvd_request()
 
                 # Send request to NVD API.
