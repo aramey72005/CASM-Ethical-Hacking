@@ -1,8 +1,78 @@
+import time
+
 import requests
 from urllib.parse import quote  # (not currently used, but useful if encoding queries later)
 
 # Base endpoint for NVD CVE API (version 2.0)
 NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+# Public NVD requests without an API key are rate limited. The delay plus
+# in-process cache keep normal classroom/lab scans from hammering the API.
+NVD_REQUEST_DELAY_SECONDS = 6.2
+NVD_QUERY_CACHE = {}
+LAST_NVD_REQUEST_AT = 0.0
+
+
+def throttle_nvd_request():
+    global LAST_NVD_REQUEST_AT
+
+    # Sleep only for the remaining time needed since the last outgoing request.
+    elapsed = time.monotonic() - LAST_NVD_REQUEST_AT
+    wait_for = NVD_REQUEST_DELAY_SECONDS - elapsed
+
+    if wait_for > 0:
+        time.sleep(wait_for)
+
+    LAST_NVD_REQUEST_AT = time.monotonic()
+
+
+def build_search_queries(service: str, product: str | None = None, version: str | None = None) -> list[str]:
+    """
+    Builds NVD keyword searches from scanner service data.
+
+    Nmap and NVD do not always use the same product names. For example,
+    Nmap often reports Apache as "Apache httpd", while NVD commonly uses
+    "Apache HTTP Server" or the CPE product name "http_server".
+    """
+    candidates = []
+
+    product_lower = (product or "").lower()
+    service_lower = (service or "").lower()
+    is_apache_httpd = (
+        "apache" in product_lower and ("httpd" in product_lower or "http" in service_lower)
+    )
+
+    if is_apache_httpd:
+        if version:
+            # Apache is the main place Nmap/NVD naming differs in this project:
+            # Nmap reports "Apache httpd", while NVD often matches
+            # "Apache HTTP Server" or CPE-like "http_server".
+            candidates.extend([
+                f"Apache HTTP Server {version}",
+                f"Apache http_server {version}",
+                f"http_server {version}",
+            ])
+
+    if product and version:
+        candidates.append(f"{product} {version}")
+    elif product:
+        candidates.append(product)
+    elif service and service_lower not in {"tcpwrapped", "unknown"}:
+        # Only fall back to service name when no product was detected. Broad
+        # names like "rtsp" can cause false-positive CVEs, so product/version
+        # data is strongly preferred.
+        candidates.append(service)
+
+    queries = []
+    seen = set()
+
+    for candidate in candidates:
+        query = str(candidate or "").strip()
+        key = query.lower()
+        if query and key not in seen:
+            queries.append(query)
+            seen.add(key)
+
+    return queries
 
 
 def get_severity(score: float) -> str:
@@ -89,68 +159,86 @@ def lookup_cves(service: str, product: str | None = None, version: str | None = 
     ]
     """
 
-    # Build search query based on available data
-    query = ""
-    if product and version:
-        query = f"{product} {version}"
-    elif product:
-        query = product
-    else:
-        query = service or ""
-
-    query = query.strip()
+    queries = build_search_queries(service, product, version)
 
     # If nothing to search, return empty
-    if not query:
+    if not queries:
         return []
 
-    print(f"[DEBUG] NVD search: {query}")
-
     try:
-        # Send request to NVD API
-        resp = requests.get(
-            NVD_API_URL,
-            params={
-                "keywordSearch": query,   # keyword-based search
-                "resultsPerPage": 5,      # limit results (performance control)
-            },
-            timeout=20,  # prevent hanging requests
-        )
-
-        # Raise error if request failed (HTTP != 200)
-        resp.raise_for_status()
-
-        # Parse JSON response
-        data = resp.json()
-
         results = []
+        seen_cves = set()
 
-        # Loop through returned CVE entries
-        for item in data.get("vulnerabilities", []):
-            cve = item.get("cve", {})
+        for query in queries:
+            print(f"[DEBUG] NVD search: {query}")
 
-            # Extract CVE ID (e.g., CVE-2021-41773)
-            cve_id = cve.get("id")
+            cache_key = query.lower()
+            if cache_key in NVD_QUERY_CACHE:
+                # Repeated products across hosts should reuse the same response
+                # instead of making duplicate NVD calls.
+                data = NVD_QUERY_CACHE[cache_key]
+                print(f"[DEBUG] NVD cache hit: {query}")
+            else:
+                throttle_nvd_request()
 
-            # Extract CVSS score + severity
-            score, severity = extract_cvss(cve)
+                # Send request to NVD API.
+                resp = requests.get(
+                    NVD_API_URL,
+                    params={
+                        "keywordSearch": query,   # keyword-based search
+                        "resultsPerPage": 20,     # keep one focused request richer than many broad ones
+                    },
+                    timeout=20,  # prevent hanging requests
+                )
 
-            print(f"[DEBUG] CVE {cve_id} → score={score}, severity={severity}")
-
-            # Extract English description (if available)
-            desc = ""
-            for d in cve.get("descriptions", []):
-                if d.get("lang") == "en":
-                    desc = d.get("value", "")
+                if resp.status_code == 429:
+                    # A 429 means "unknown right now", not "no CVEs". Preserve
+                    # partial results and let the terminal warning explain why
+                    # later aliases for this service were skipped.
+                    retry_after = resp.headers.get("Retry-After")
+                    print(
+                        "[WARN] NVD rate limit hit. "
+                        f"Skipping remaining queries for this service. Retry-After={retry_after or 'unknown'}"
+                    )
                     break
 
-            # Store simplified CVE object for your system
-            results.append({
-                "cve_id": cve_id,
-                "cvss": score,
-                "severity": severity,
-                "title": desc[:200] if desc else "",  # trim long descriptions
-            })
+                # Raise error if request failed (HTTP != 200)
+                resp.raise_for_status()
+
+                # Parse JSON response
+                data = resp.json()
+                NVD_QUERY_CACHE[cache_key] = data
+
+            # Loop through returned CVE entries
+            for item in data.get("vulnerabilities", []):
+                cve = item.get("cve", {})
+
+                # Extract CVE ID (e.g., CVE-2021-41773)
+                cve_id = cve.get("id")
+                if not cve_id or cve_id in seen_cves:
+                    continue
+
+                seen_cves.add(cve_id)
+
+                # Extract CVSS score + severity
+                score, severity = extract_cvss(cve)
+
+                print(f"[DEBUG] CVE {cve_id} → score={score}, severity={severity}")
+
+                # Extract English description (if available)
+                desc = ""
+                for d in cve.get("descriptions", []):
+                    if d.get("lang") == "en":
+                        desc = d.get("value", "")
+                        break
+
+                # Store simplified CVE object for your system
+                results.append({
+                    "cve_id": cve_id,
+                    "cvss": score,
+                    "severity": severity,
+                    "title": desc[:200] if desc else "",  # trim long descriptions
+                })
 
         return results
 

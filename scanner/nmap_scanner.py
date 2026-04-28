@@ -3,8 +3,13 @@ from scanner.ip_parser import normalize_target_spec
 
 
 def run_scan(target, scan_args="-sV"):
+    # Normalize user input before handing it to Nmap so CIDR ranges, single IPs,
+    # hostnames, and comma-separated targets are handled consistently.
     target = normalize_target_spec(target)
     nm = nmap.PortScanner()
+
+    # scan_args defaults to service/version detection because product and
+    # version fields are what make the later NVD lookup specific enough.
     nm.scan(hosts=target, arguments=scan_args)
 
     results = {}
@@ -19,6 +24,8 @@ def run_scan(target, scan_args="-sV"):
             for port in sorted(nm[host][proto].keys()):
                 svc = nm[host][proto][port]
 
+                # This service dictionary is the shared record that each later
+                # pipeline stage enriches with CVEs, exploit matches, and risk.
                 results[host]["services"].append({
                     "port": port,
                     "protocol": proto,

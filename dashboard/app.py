@@ -6,6 +6,8 @@ from main import run_scan_pipeline
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
+# The app keeps the newest scan in memory so /api/graph, /api/node, and the
+# results page can read it without a database. Restarting Flask clears it.
 LATEST_RESULTS = {"nodes": [], "edges": [], "raw_scan": {}}
 SCAN_DEBUG = {
     "status": "idle",
@@ -41,6 +43,8 @@ def results():
 def scan():
     global LATEST_RESULTS, SCAN_DEBUG
 
+    # The frontend posts target/scan_args as JSON. Defaults keep the app usable
+    # if a request is missing either field.
     data = request.get_json(silent=True) or {}
     target = data.get("target", "127.0.0.1")
     scan_args = data.get("scan_args", "-sV")
@@ -62,6 +66,8 @@ def scan():
     }
 
     try:
+        # This is the expensive path: Nmap scan, NVD enrichment, risk scoring,
+        # and graph construction all run before the response returns.
         LATEST_RESULTS = run_scan_pipeline(target, scan_args)
         raw_scan = LATEST_RESULTS.get("raw_scan", {})
         finished_at = datetime.now(timezone.utc)
@@ -83,6 +89,8 @@ def scan():
 
         return jsonify(SCAN_DEBUG)
     except Exception as exc:
+        # Return the traceback through /api/debug so UI testing can see backend
+        # failures without needing to watch the terminal.
         finished_at = datetime.now(timezone.utc)
         error_message = str(exc) or exc.__class__.__name__
         SCAN_DEBUG = {
@@ -104,6 +112,8 @@ def scan():
 
 @app.route("/api/graph")
 def graph():
+    # The graph endpoint is intentionally read-only and cheap; it simply returns
+    # the last successful pipeline output.
     return jsonify(LATEST_RESULTS)
 
 
@@ -119,6 +129,7 @@ def debug():
 def node():
     node_id = request.args.get("node", "")
 
+    # Node lookup powers the "Selected Node" panel in the graph UI.
     for node in LATEST_RESULTS.get("nodes", []):
         if str(node.get("id")) == node_id:
             return jsonify(node)

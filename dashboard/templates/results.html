@@ -5,12 +5,91 @@
 
 <h2>Scan Results</h2>
 
+<h3>Vulnerability Risk Scores</h3>
+<table class="results-table">
+  <thead>
+    <tr>
+      <th>Host</th>
+      <th>Port</th>
+      <th>Service</th>
+      <th>Risk Score</th>
+      <th>CVE</th>
+      <th>CVSS</th>
+      <th>Severity</th>
+    </tr>
+  </thead>
+  <tbody id="riskResults">
+    <tr>
+      <td colspan="7">Loading scan results...</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Raw Graph Data</h3>
 <pre id="results"></pre>
 
 <script>
 fetch("/api/graph")
   .then(r => r.json())
   .then(data => {
+    const tbody = document.getElementById("riskResults");
+    const rawScan = data.raw_scan || {};
+
+    tbody.replaceChildren();
+
+    function addCell(row, value, colspan) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      if (colspan) {
+        cell.colSpan = colspan;
+      }
+      row.appendChild(cell);
+    }
+
+    function addRow(values) {
+      const row = document.createElement("tr");
+      values.forEach(value => {
+        if (Array.isArray(value)) {
+          addCell(row, value[0], value[1]);
+        } else {
+          addCell(row, value);
+        }
+      });
+      tbody.appendChild(row);
+    }
+
+    Object.entries(rawScan).forEach(([host, hostData]) => {
+      const services = Array.isArray(hostData.services) ? hostData.services : [];
+
+      services.forEach(service => {
+        const cves = Array.isArray(service.cves) ? service.cves : [];
+        const riskScore = service.risk_score ?? service.risk ?? 0;
+        const port = service.port ? `${service.port}/${service.protocol || "tcp"}` : "";
+        const serviceName = service.service || service.name || "unknown";
+
+        if (!cves.length) {
+          addRow([host, port, serviceName, riskScore, ["No CVEs found", 3]]);
+          return;
+        }
+
+        cves.forEach(cve => {
+          addRow([
+            host,
+            port,
+            serviceName,
+            riskScore,
+            cve.cve_id || "unknown",
+            cve.cvss ?? 0,
+            cve.severity || "UNKNOWN"
+          ]);
+        });
+      });
+    });
+
+    if (!tbody.children.length) {
+      addRow([["No service results found. Run a scan first.", 7]]);
+    }
+
     document.getElementById("results").innerText =
       JSON.stringify(data, null, 2);
   });

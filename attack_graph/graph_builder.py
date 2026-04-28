@@ -2,19 +2,23 @@ import networkx as nx
 
 
 def build_graph(data):
+    # The dashboard uses a NetworkX graph as a neutral shape before converting
+    # it to JSON. Every node gets a type so the frontend can render it clearly.
     G = nx.Graph()
 
     for ip, info in data.items():
         host_risk = 0
         services = info.get("services", [])
         if services:
-            host_risk = max(svc.get("risk", 0) for svc in services)
+            # Host risk is the highest service risk found on that host.
+            host_risk = max(svc.get("risk_score", svc.get("risk", 0)) for svc in services)
 
         G.add_node(
             ip,
             type="host",
             label=ip,
             risk=host_risk,
+            risk_score=host_risk,
             host_state=info.get("host_state", "")
         )
 
@@ -24,11 +28,14 @@ def build_graph(data):
             product = svc.get("product") or ""
             version = svc.get("version") or ""
 
+            # Service nodes keep the raw scan details so clicking a node in the
+            # graph shows the same product/version data used for CVE lookup.
             G.add_node(
                 svc_node,
                 type="service",
                 label=service_label,
-                risk=svc.get("risk", 0),
+                risk=svc.get("risk_score", svc.get("risk", 0)),
+                risk_score=svc.get("risk_score", svc.get("risk", 0)),
                 port=svc.get("port"),
                 protocol=svc.get("protocol", ""),
                 state=svc.get("state", ""),
@@ -46,23 +53,32 @@ def build_graph(data):
 
                 cve_node = f"{cve_id}:{svc_node}"
 
+                # NVD does not provide a short marketing-style title. The CVE ID
+                # is the stable vulnerability name, while title stores our short
+                # trimmed NVD summary for debugging when available.
                 G.add_node(
                     cve_node,
                     type="cve",
-                    label = cve_id,
-                    severity = cve.get("severity", "UNKNOWN"),
-                    cvss = cve.get("cvss",0)
+                    label=cve_id,
+                    title=cve.get("title", ""),
+                    cve_name=cve_id,
+                    severity=cve.get("severity", "UNKNOWN"),
+                    cvss=cve.get("cvss", 0),
+                    risk_score=cve.get("cvss", 0)
                 )
                 G.add_edge(svc_node, cve_node)
 
             for hit in svc.get("public_exploit_matches", [])[:5]:
                 exploit_id = hit.get("edb_id") or hit.get("title") or "unknown"
                 exploit_node = f"EDB:{exploit_id}:{svc_node}"
+                # Exploit nodes inherit the parent service risk because they
+                # represent exploit availability for that vulnerable service.
                 G.add_node(
                     exploit_node,
                     type="exploit",
                     label=hit.get("title", "Exploit"),
-                    risk=svc.get("risk", 0),
+                    risk=svc.get("risk_score", svc.get("risk", 0)),
+                    risk_score=svc.get("risk_score", svc.get("risk", 0)),
                     confidence=hit.get("confidence", "low"),
                     edb_id=hit.get("edb_id", ""),
                     platform=hit.get("platform", ""),

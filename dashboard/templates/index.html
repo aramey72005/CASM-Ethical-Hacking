@@ -9,7 +9,34 @@
   </div>
   <pre id="scanDebug">No scan activity yet.</pre>
 </div>
-<div id="graph" style="height: 600px;"></div>
+
+<div class="graph-toolbar">
+  <div class="toolbar-group">
+    <button type="button" id="criticalPathToggle" onclick="toggleCriticalPath()">Show Critical Path</button>
+    <select id="criticalPathMode" onchange="setCriticalPathMode(this.value)">
+      <option value="risk">Highest Risk</option>
+      <option value="severity">Highest Severity</option>
+    </select>
+    <button type="button" id="hostLinksToggle" onclick="toggleHostLinks()">Connect Hosts</button>
+  </div>
+  <div id="criticalPathSummary" class="path-summary">Critical path hidden.</div>
+</div>
+
+<div class="graph-layout">
+  <div id="graph" style="height: 600px;"></div>
+  <aside class="graph-legend">
+    <h3>Legend</h3>
+    <div class="legend-row"><span class="legend-dot critical"></span>Critical: 9.0-10.0</div>
+    <div class="legend-row"><span class="legend-dot high"></span>High: 7.0-8.9</div>
+    <div class="legend-row"><span class="legend-dot medium"></span>Medium: 4.0-6.9</div>
+    <div class="legend-row"><span class="legend-dot low"></span>Low: 0.1-3.9</div>
+    <div class="legend-row"><span class="legend-dot none"></span>No score: 0</div>
+    <div class="legend-row"><span class="legend-dot exploit"></span>Exploit match</div>
+    <h3>CVEs</h3>
+    <div id="cveLegend" class="cve-legend">No CVEs loaded.</div>
+  </aside>
+</div>
+
 <h3>Selected Node</h3>
 <pre id="info"></pre>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
