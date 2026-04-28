@@ -289,7 +289,8 @@ function findCriticalPath(data) {
     neighborsById.get(to).add(from);
   });
 
-  let bestPath = null;
+  let bestPath = [];
+  let bestScore = -Infinity
 
   data.nodes
     .filter(node => node.type === "service")
@@ -306,18 +307,21 @@ function findCriticalPath(data) {
           const nodeIds = cveId ? [hostId, serviceId, cveId] : [hostId, serviceId];
           const score = nodeIds.reduce((sum, id) => sum + getPathNodeScore(nodesById.get(id)), 0);
 
-          if (!bestPath || score > bestPath.score) {
-            bestPath = { nodeIds, score };
-          }
+            if (score > bestScore) {
+              bestScore = score;
+              bestPaths = [{ nodeIds, score }];
+            } else if (score === bestScore) {
+              bestPaths.push({ nodeIds, score });
+            }
         });
       });
     });
 
-  return bestPath;
+return bestPaths.length ? bestPaths : null;
 }
 
 // Shows a compact text explanation of the currently highlighted path.
-function renderCriticalPathSummary(path, nodesById) {
+function renderCriticalPathSummary(paths, nodesById) {
   const summary = document.getElementById("criticalPathSummary");
   if (!summary) {
     return;
@@ -328,14 +332,21 @@ function renderCriticalPathSummary(path, nodesById) {
     return;
   }
 
-  if (!path) {
+  if (!paths || !paths.length) {
     summary.textContent = "No critical path found in the current graph.";
     return;
   }
 
-  const labels = path.nodeIds.map(id => nodesById.get(id)?.label || id);
   const mode = graphState.criticalPathMode === "severity" ? "severity-weighted" : "risk-score";
-  summary.textContent = `${mode} path: ${labels.join(" -> ")} | total ${path.score.toFixed(1)}`;
+  const score = paths[0].score.toFixed(1);
+
+  if (paths.length === 1) {
+    const labels = paths[0].nodeIds.map(id => nodesById.get(id)?.label || id);
+    summary.textContent = `${mode} path: ${labels.join(" -> ")} | total ${score}`;
+    return;
+  }
+
+  summary.textContent = `${paths.length} tied ${mode} critical paths found | total ${score}`;
 }
 
 // Lists CVEs by their stable CVE name/ID. The browser tooltip keeps the short
@@ -429,19 +440,22 @@ function renderGraph(data) {
   }
 
   const nodesById = new Map(data.nodes.map(node => [String(node.id), node]));
-  const criticalPath = graphState.criticalPathEnabled ? findCriticalPath(data) : null;
-  const criticalNodeIds = new Set(criticalPath?.nodeIds || []);
+  const criticalPaths = graphState.criticalPathEnabled ? findCriticalPath(data) : null;
+  const criticalNodeIds = new Set();
   const criticalEdgeKeys = new Set();
 
-  graphState.criticalPath = criticalPath;
-  renderCriticalPathSummary(criticalPath, nodesById);
+  graphState.criticalPath = criticalPaths;
+  renderCriticalPathSummary(criticalPaths, nodesById);
 
-  if (criticalPath) {
-    for (let i = 0; i < criticalPath.nodeIds.length - 1; i += 1) {
-      criticalEdgeKeys.add(makeEdgeKey(criticalPath.nodeIds[i], criticalPath.nodeIds[i + 1]));
-    }
+  if (criticalPaths) {
+    criticalPaths.forEach(path => {
+      path.nodeIds.forEach(id => criticalNodeIds.add(String(id)));
+
+      for (let i = 0; i < path.nodeIds.length - 1; i += 1) {
+        criticalEdgeKeys.add(makeEdgeKey(path.nodeIds[i], path.nodeIds[i + 1]));
+      }
+    });
   }
-
   const graphNodes = data.nodes.map(n => {
       let color = "#4da6ff";
       let label = n.label || n.id;
