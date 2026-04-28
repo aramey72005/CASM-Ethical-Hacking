@@ -408,7 +408,8 @@ function getHostLinkEdges(nodes) {
       edges.push({
         from: hosts[i].id,
         to: hosts[j].id,
-        type: "host_link"
+        type: "host_link",
+        physics: false
       });
     }
   }
@@ -516,6 +517,7 @@ function renderGraph(data) {
         from: e.from,
         to: e.to,
         dashes: isHostLink,
+          physics: e.physics !== false,
         width: isCritical ? 5 : (isHostLink ? 2 : 1),
         color: isCritical ? CRITICAL_PATH_COLOR : (isHostLink ? "#4da6ff" : "#888")
       };
