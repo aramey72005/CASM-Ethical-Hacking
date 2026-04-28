@@ -1,0 +1,24 @@
+{
+    "127.0.0.1": {
+        "services": [
+            {
+                "port": 80,
+                "service": "http",
+                "version": "Apache 2.4.66",
+                "cves": [
+                    "CVE-2025-1234"
+                ],
+                "risk": 6
+            },
+            {
+                "port": 22,
+                "service": "ssh",
+                "version": "OpenSSH 9.0",
+                "cves": [
+                    "CVE-2024-9999"
+                ],
+                "risk": 4
+            }
+        ]
+    }
+}

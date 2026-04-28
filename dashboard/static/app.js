@@ -133,6 +133,14 @@ function makeEdgeKey(from, to) {
 // Starts the backend scan pipeline and refreshes the graph when it completes.
 function runScan() {
   const target = document.getElementById("targetInput").value.trim() || "127.0.0.1";
+  const scanButton = document.querySelector("button[onclick='runScan()']");
+  const progressDiv = document.getElementById("scanProgress");
+
+  // Disable button and show progress
+  scanButton.disabled = true;
+  scanButton.textContent = "Scanning...";
+  progressDiv.style.display = "flex";
+
   setDebugText(formatDebugState({
     status: "starting",
     target,
@@ -160,6 +168,12 @@ function runScan() {
     .catch(err => {
       console.error("Scan error:", err);
       setDebugText(formatDebugState(err));
+    })
+    .finally(() => {
+      // Re-enable button and hide progress
+      scanButton.disabled = false;
+      scanButton.textContent = "Run Scan";
+      progressDiv.style.display = "none";
     });
 }
 
@@ -431,10 +445,12 @@ function renderGraph(data) {
   const graphNodes = data.nodes.map(n => {
       let color = "#4da6ff";
       let label = n.label || n.id;
+      let size = 16;
 
       if (n.type === "host") {
         color = getRiskColor(n.risk_score || n.risk);
         label = n.label || n.id;
+        size = 22;
       } else if (n.type === "service") {
         color = getRiskColor(n.risk_score || n.risk);
         const port = n.port ? `:${n.port}` : "";
@@ -469,7 +485,7 @@ function renderGraph(data) {
         shadow: criticalNodeIds.has(String(n.id))
           ? { enabled: true, color: CRITICAL_PATH_COLOR, size: 18, x: 0, y: 0 }
           : false,
-        size: 16
+        size
       };
     });
 
@@ -508,6 +524,10 @@ function renderGraph(data) {
     },
     physics: {
       enabled: true,
+      stabilization: {
+        enabled: true,
+        iterations: 1000
+      },
       barnesHut: {
         gravitationalConstant: -2000
       }
@@ -529,7 +549,6 @@ function renderGraph(data) {
     graphState.nodeDataSet.update(graphNodes);
     graphState.edgeDataSet.clear();
     graphState.edgeDataSet.add(graphEdgeData);
-    window.network.setOptions({ physics: false });
     return;
   }
 
@@ -539,12 +558,6 @@ function renderGraph(data) {
     nodes: graphState.nodeDataSet,
     edges: graphState.edgeDataSet
   }, options);
-
-  // Let the first render settle naturally, then freeze the layout so critical
-  // path and host-link toggles behave like visual overlays.
-  window.network.once("stabilizationIterationsDone", function() {
-    window.network.setOptions({ physics: false });
-  });
 
   window.network.on("click", function(params) {
     if (!params.nodes.length || !infoBox) {

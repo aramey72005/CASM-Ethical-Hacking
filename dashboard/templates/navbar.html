@@ -15,6 +15,13 @@
 
     <button onclick="runScan()">Run Scan</button>
 
+    <div id="scanProgress" class="scan-progress" style="display: none;">
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+      </div>
+      <span class="progress-text">Scanning...</span>
+    </div>
+
     <select id="themeSelect" onchange="setTheme(this.value)">
       <option value="dark">Dark</option>
       <option value="light">Light</option>
